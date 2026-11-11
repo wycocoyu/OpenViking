@@ -360,6 +360,7 @@ class _SingleAccountBackend:
         self._collection_config: Dict[str, Any] = {}
         self._meta_data_cache: Dict[str, Any] = {}
         self._mode = self._adapter.mode
+        self._supports_path_glob_override = getattr(config, "supports_path_glob", None)
         self._distance_metric = config.distance_metric
         self._sparse_weight = config.sparse_weight
         self._collection_name = config.name or "context"
@@ -398,7 +399,10 @@ class _SingleAccountBackend:
 
     @property
     def supports_path_glob(self) -> bool:
-        """Report the selected account adapter's remote PathGlob capability."""
+        """Use the account configuration, falling back to the adapter default."""
+        configured = getattr(self, "_supports_path_glob_override", None)
+        if configured is not None:
+            return configured
         return getattr(self._adapter, "supports_path_glob", False) is True
 
     @property

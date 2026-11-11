@@ -1471,8 +1471,7 @@ class _OpsMixin:
             meta = await vector_store.get_collection_meta(ctx=ctx)
             fields = meta.get("Fields", []) if isinstance(meta, dict) else []
             return any(
-                field.get("FieldName") == "uri" and field.get("FieldType") == "path"
-                for field in fields if isinstance(field, dict)
+                field.get("FieldName") == "uri" for field in fields if isinstance(field, dict)
             )
         except Exception:
             logger.debug(

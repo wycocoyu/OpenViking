@@ -62,13 +62,19 @@ class PathGlobCapabilityTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await self.eligible())
         self.fs._get_cached_count.assert_not_awaited()
 
-    async def test_path_schema_and_scope_count_are_required(self):
+    async def test_uri_field_and_scope_count_are_required(self):
         self.fs._get_cached_count.return_value = 99
         self.assertFalse(await self.eligible())
-        for fields in [[], [{"FieldName": "uri"}], [{"FieldName": "uri", "FieldType": "string"}]]:
+        for fields in [[], [{"FieldName": "other"}]]:
             self.store.get_collection_meta.return_value = {"Fields": fields}
             with self.subTest(fields=fields):
                 self.assertFalse(await self.eligible())
+
+    async def test_uri_field_detection_keeps_legacy_behavior(self):
+        for field in [{"FieldName": "uri"}, {"FieldName": "uri", "FieldType": "string"}]:
+            self.store.get_collection_meta.return_value = {"Fields": [field]}
+            with self.subTest(field=field):
+                self.assertTrue(await self.eligible())
 
     async def test_backend_metadata_and_count_errors_fall_back(self):
         for method in [self.store.get_account_backend, self.store.get_collection_meta,
@@ -89,6 +95,53 @@ class PathGlobCapabilityTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(CollectionAdapter.supports_path_glob)
         self.assertTrue(VikingDBPrivateCollectionAdapter.supports_path_glob)
         self.assertTrue(VolcengineCollectionAdapter.supports_path_glob)
+
+    async def test_configuration_can_disable_or_enable_current_backend(self):
+        from openviking.storage.viking_vector_index_backend import _SingleAccountBackend
+        from openviking_cli.utils.config.vectordb_config import VectorDBBackendConfig
+        for configured in (None, False, True):
+            config = VectorDBBackendConfig(backend="example.CustomAdapter", dimension=1,
+                                           supports_path_glob=configured)
+            adapter = SimpleNamespace(mode="custom_backend", supports_path_glob=False)
+            backend = _SingleAccountBackend(config, "account-1", shared_adapter=adapter)
+            self.store.get_account_backend.return_value = backend
+            with self.subTest(configured=configured):
+                self.assertEqual(await self.eligible(), configured is True)
+
+    async def test_existing_backends_keep_defaults_and_allow_override(self):
+        from openviking.storage.viking_vector_index_backend import _SingleAccountBackend
+        from openviking.storage.vectordb_adapters.vikingdb_private_adapter import (
+            VikingDBPrivateCollectionAdapter,
+        )
+        from openviking.storage.vectordb_adapters.volcengine_adapter import (
+            VolcengineCollectionAdapter,
+        )
+        from openviking_cli.utils.config.vectordb_config import VectorDBBackendConfig
+        cases = [
+            ("vikingdb", {"vikingdb": {"host": "http://example.invalid"}},
+             VikingDBPrivateCollectionAdapter),
+            ("volcengine", {"volcengine": {"host": "http://example.invalid", "api_key": "test"}},
+             VolcengineCollectionAdapter),
+        ]
+        for name, connection, adapter_type in cases:
+            for settings, enabled in [({}, True), ({"supports_path_glob": None}, True),
+                                      ({"supports_path_glob": False}, False),
+                                      ({"supports_path_glob": True}, True)]:
+                config = VectorDBBackendConfig(backend=name, dimension=1, **connection, **settings)
+                adapter = adapter_type.from_config(config)
+                backend = _SingleAccountBackend(config, "account-1", shared_adapter=adapter)
+                self.store.get_account_backend.return_value = backend
+                with self.subTest(backend=name, settings=settings):
+                    self.assertEqual(await self.eligible(), enabled)
+                    self.assertEqual(backend._mode, name)
+
+    async def test_configuration_serialization_preserves_boolean_override(self):
+        from openviking_cli.utils.config.vectordb_config import VectorDBBackendConfig
+        for value in (None, False, True):
+            config = VectorDBBackendConfig(backend="example.CustomAdapter", supports_path_glob=value)
+            restored = VectorDBBackendConfig.model_validate_json(config.model_dump_json())
+            with self.subTest(value=value):
+                self.assertIs(restored.supports_path_glob, value)
 
 
 if __name__ == "__main__":
