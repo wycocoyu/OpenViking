@@ -397,6 +397,11 @@ class _SingleAccountBackend:
         return self._adapter.get_collection()
 
     @property
+    def supports_path_glob(self) -> bool:
+        """Report the selected account adapter's remote PathGlob capability."""
+        return getattr(self._adapter, "supports_path_glob", False) is True
+
+    @property
     def collection_name(self) -> str:
         return self._collection_name
 

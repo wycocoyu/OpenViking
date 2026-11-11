@@ -29,6 +29,7 @@ class VolcengineCollectionAdapter(CollectionAdapter):
     _STRING_FIELD_BYTE_LIMIT = VIKINGDB_STRING_FIELD_BYTE_LIMIT
     _TEXT_FIELD_BYTE_LIMIT = VIKINGDB_TEXT_FIELD_BYTE_LIMIT
     USE_CONTENT_FIELD = True
+    supports_path_glob = True
 
     def __init__(
         self,

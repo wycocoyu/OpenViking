@@ -20,6 +20,7 @@ class _DummyAgfs:
 class _RemoteGlobVectorStore:
     _backend_type = "vikingdb"
     _mode = "vikingdb"
+    supports_path_glob = True
 
     async def get_account_backend(self, account_id):
         assert account_id
